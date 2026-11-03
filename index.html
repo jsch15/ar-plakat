@@ -33,7 +33,7 @@
       width: 2.2rem; height: 2.2rem; font-size: 1.2rem; cursor: pointer;
     }
 
-    /* Nur im Debug-Modus (?debug): zeigt Koordinaten */
+    /* Meldungsfeld (gelb): Fehler und, mit ?debug, Koordinaten */
     #debugbox {
       display: none; position: fixed; top: 60px; left: 12px; right: 12px; z-index: 10;
       background: rgba(255,255,0,.9); color: #000; padding: .5rem; font: .85rem monospace;
@@ -44,7 +44,7 @@
 <body>
 
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind;"
+    mindar-image="imageTargetSrc: ./targets.mind; missTolerance: 30; warmupTolerance: 5; filterMinCF: 0.0005; filterBeta: 100;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
     renderer="colorManagement: true; physicallyCorrectLights: true"
@@ -67,7 +67,8 @@
         <a-entity id="startrot">
           <!-- holder = automatische Größenanpassung -->
           <a-entity id="holder">
-            <a-entity id="model" obj-model="obj: ./models/camera.obj"></a-entity>          </a-entity>
+            <a-entity id="model" obj-model="obj: ./models/camer.obj"></a-entity>
+          </a-entity>
         </a-entity>
         <!-- Hotspots (gelbe Kugeln) werden per Skript hier eingefügt -->
       </a-entity>
@@ -137,12 +138,17 @@
     const info    = document.getElementById('info');
     const debugbox = document.getElementById('debugbox');
 
+    // Meldung im gelben Feld anzeigen
+    function showMsg(t) {
+      debugbox.style.display = 'block';
+      debugbox.textContent = t;
+    }
+
     // Marker-Höhe und Debug-Anzeige
     document.getElementById('debugPlane').setAttribute('height', MARKER_ASPECT);
     if (DEBUG) {
       document.getElementById('debugPlane').setAttribute('visible', 'true');
-      debugbox.style.display = 'block';
-      debugbox.textContent = 'Debug an: tippe auf das Modell, um Koordinaten zu sehen.';
+      showMsg('Debug an: Modell wird geladen ...');
     }
 
     // Grunddrehung und Abstand setzen
@@ -151,8 +157,25 @@
     pivot.setAttribute('position', { x: 0, y: 0, z: MODEL_Z });
 
     // Modell automatisch auf MODEL_SIZE bringen und zentrieren
+    model.addEventListener('model-error', () => {
+      showMsg('FEHLER: camera.obj konnte nicht geladen werden (Name/Ordner prüfen).');
+    });
+
     model.addEventListener('model-loaded', () => {
       const mesh = model.getObject3D('mesh');
+
+      // Sichtbares graues Material erzwingen, beide Flächenseiten zeichnen
+      mesh.traverse((o) => {
+        if (o.isMesh) {
+          if (o.geometry && !o.geometry.attributes.normal) {
+            o.geometry.computeVertexNormals();
+          }
+          o.material = new THREE.MeshStandardMaterial({
+            color: 0xcccccc, metalness: 0.3, roughness: 0.6, side: THREE.DoubleSide
+          });
+        }
+      });
+
       const tmp = new THREE.Group();
       tmp.add(mesh.clone());
       tmp.updateMatrixWorld(true);
@@ -160,9 +183,20 @@
       const size = box.getSize(new THREE.Vector3());
       const center = box.getCenter(new THREE.Vector3());
       const maxDim = Math.max(size.x, size.y, size.z);
+
+      if (!isFinite(maxDim) || maxDim === 0) {
+        showMsg('FEHLER: Modell ist leer oder hat keine Größe.');
+        return;
+      }
+
       const s = MODEL_SIZE / maxDim;
       holder.object3D.scale.setScalar(s);
       model.object3D.position.copy(center).multiplyScalar(-1);
+
+      if (DEBUG) {
+        showMsg('Modell geladen. Originalgröße: ' +
+          size.x.toFixed(1) + ' x ' + size.y.toFixed(1) + ' x ' + size.z.toFixed(1));
+      }
     });
 
     // Hotspots erzeugen
@@ -221,10 +255,9 @@
         const mhits = raycaster.intersectObject(model.object3D, true);
         if (mhits.length) {
           const local = pivot.object3D.worldToLocal(mhits[0].point.clone());
-          // Rückrechnung in die Modell-Ausrichtung nach START_ROT ist nicht nötig:
           // Hotspots hängen am pivot, also gelten diese Koordinaten direkt.
-          debugbox.textContent = 'position: "' +
-            local.x.toFixed(3) + ' ' + local.y.toFixed(3) + ' ' + local.z.toFixed(3) + '"';
+          showMsg('position: "' +
+            local.x.toFixed(3) + ' ' + local.y.toFixed(3) + ' ' + local.z.toFixed(3) + '"');
         }
       }
     }
