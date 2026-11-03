@@ -49,7 +49,7 @@
     device-orientation-permission-ui="enabled: false"
     renderer="colorManagement: true; physicallyCorrectLights: true"
   >
-    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+    <a-camer position="0 0 0" look-controls="enabled: false"></a-camer>
 
     <!-- Licht, damit das Modell nicht schwarz aussieht -->
     <a-entity light="type: ambient; intensity: 1.2"></a-entity>
@@ -158,7 +158,7 @@
 
     // Modell automatisch auf MODEL_SIZE bringen und zentrieren
     model.addEventListener('model-error', () => {
-      showMsg('FEHLER: camera.obj konnte nicht geladen werden (Name/Ordner prüfen).');
+      showMsg('FEHLER: camer.obj konnte nicht geladen werden (Name/Ordner prüfen).');
     });
 
     model.addEventListener('model-loaded', () => {
@@ -234,13 +234,13 @@
     // Antippen: Hotspot oder (im Debug) Modell treffen
     const raycaster = new THREE.Raycaster();
     function handleTap(clientX, clientY) {
-      const cam = sceneEl.camera;
+      const cam = sceneEl.camer;
       const rect = sceneEl.canvas.getBoundingClientRect();
       const ndc = new THREE.Vector2(
         ((clientX - rect.left) / rect.width) * 2 - 1,
         -((clientY - rect.top) / rect.height) * 2 + 1
       );
-      raycaster.setFromCamera(ndc, cam);
+      raycaster.setFromCamer(ndc, cam);
 
       const hotspotObjs = hotspotEls.map(e => e.object3D);
       const hits = raycaster.intersectObjects(hotspotObjs, true);
