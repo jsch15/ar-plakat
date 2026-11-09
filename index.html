@@ -139,10 +139,14 @@
     const debugbox = document.getElementById('debugbox');
 
     // Meldung im gelben Feld anzeigen
-    function showMsg(t) {
-      debugbox.style.display = 'block';
-      debugbox.textContent = t;
-    }
+  function handleTap(clientX, clientY) {
+  const cam = sceneEl.camera; // Echte A-Frame Kamera-Referenz
+  const rect = sceneEl.canvas.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
+  );
+  raycaster.setFromCamera(ndc, cam);
 
     // Marker-Höhe und Debug-Anzeige
     document.getElementById('debugPlane').setAttribute('height', MARKER_ASPECT);
