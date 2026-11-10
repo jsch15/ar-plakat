@@ -2,122 +2,150 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>AR Fotografie</title>
 
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; font-family: sans-serif; touch-action: none; }
+    html, body { margin: 0; height: 100%; overflow: hidden; touch-action: none;
+                 font-family: system-ui, sans-serif; -webkit-user-select: none; user-select: none; }
 
-    /* Kleiner Hinweis oben, wenn die Marke erkannt ist */
+    /* Hinweis oben, sobald die Marke erkannt ist */
     #hint {
       display: none; position: fixed; top: 12px; left: 12px; right: 12px; z-index: 10;
       background: rgba(0,0,0,.65); color: #fff; padding: .6rem .9rem;
       border-radius: 10px; font-size: .95rem; text-align: center;
     }
 
-    /* Infofenster (Overlay am unteren Bildrand) */
+    /* Knöpfe zum Zoomen und Zurücksetzen (rechts, mittig) */
+    #tools {
+      display: none; position: fixed; right: 12px; top: 50%; transform: translateY(-50%);
+      z-index: 15; flex-direction: column; gap: 10px;
+    }
+    #tools button {
+      width: 52px; height: 52px; border: 0; border-radius: 50%;
+      background: rgba(0,0,0,.65); color: #fff; font-size: 1.6rem; line-height: 1;
+      cursor: pointer;
+    }
+    #tools button:active { background: rgba(0,0,0,.9); }
+
+    /* Infofenster (unten) */
     #info {
       display: none; position: fixed; bottom: 0; left: 0; right: 0; z-index: 20;
       background: #fff; color: #111; padding: 1rem 1.25rem 1.4rem;
       border-radius: 14px 14px 0 0; box-shadow: 0 -4px 16px rgba(0,0,0,.3);
       max-height: 45%; overflow-y: auto;
     }
-    #info h3 { margin: 0 2rem .4rem 0; }
-    #info p  { margin: 0; line-height: 1.4; }
+    #info h3 { margin: 0 2.5rem .4rem 0; }
+    #info p  { margin: 0; line-height: 1.45; }
     #info button {
       position: absolute; top: .5rem; right: .75rem;
       border: 0; background: #eee; border-radius: 50%;
       width: 2.2rem; height: 2.2rem; font-size: 1.2rem; cursor: pointer;
     }
 
-    /* Meldungsfeld (gelb): Fehler und, mit ?debug, Koordinaten */
-    #debugbox {
-      display: none; position: fixed; top: 60px; left: 12px; right: 12px; z-index: 10;
-      background: rgba(255,255,0,.9); color: #000; padding: .5rem; font: .85rem monospace;
-      border-radius: 8px;
+    /* Gelbes Meldungsfeld: Fehler, und mit ?debug auch Koordinaten */
+    #msg {
+      display: none; position: fixed; top: 64px; left: 12px; right: 12px; z-index: 1000;
+      background: rgba(255,255,0,.92); color: #000; padding: .5rem;
+      font: .85rem monospace; border-radius: 8px; word-break: break-word;
     }
   </style>
 </head>
 <body>
 
+  <!-- Hinweis: Das Element heißt a-camera (mit "a" am Ende). -->
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind; missTolerance: 30; warmupTolerance: 5; filterMinCF: 0.0005; filterBeta: 100;"
     vr-mode-ui="enabled: false"
     device-orientation-permission-ui="enabled: false"
-    renderer="colorManagement: true; physicallyCorrectLights: true"
   >
-    <a-camer position="0 0 0" look-controls="enabled: false"></a-camer>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
     <!-- Licht, damit das Modell nicht schwarz aussieht -->
-    <a-entity light="type: ambient; intensity: 1.2"></a-entity>
-    <a-entity light="type: directional; intensity: 1.5" position="1 2 3"></a-entity>
+    <a-light type="ambient" intensity="1.0"></a-light>
+    <a-light type="directional" intensity="1.2" position="1 2 3"></a-light>
 
     <a-entity id="target0" mindar-image-target="targetIndex: 0">
 
-      <!-- Marker-Fläche: nur sichtbar mit ?debug am Ende der Adresse -->
+      <!-- Marker-Fläche: nur sichtbar, wenn ?debug am Ende der Adresse steht -->
       <a-plane id="debugPlane" visible="false" color="#00aaff" opacity="0.3"
                position="0 0 0" width="1" height="0.727"></a-plane>
 
-      <!-- pivot = wird vom Finger gedreht und gezoomt -->
+      <!-- pivot: wird mit dem Finger gedreht und gezoomt -->
       <a-entity id="pivot">
-        <!-- startrot = Grunddrehung des Modells (siehe START_ROT unten) -->
+        <!-- startrot: Grunddrehung von Modell UND Hotspots -->
         <a-entity id="startrot">
-          <!-- holder = automatische Größenanpassung -->
+          <!-- holder: automatische Größenanpassung des Modells -->
           <a-entity id="holder">
-            <a-entity id="model" obj-model="obj: ./models/camer.obj"></a-entity>
+            <a-entity id="model"></a-entity>
           </a-entity>
+          <!-- Hotspots (gelbe Kugeln) werden per Skript hier eingefügt -->
         </a-entity>
-        <!-- Hotspots (gelbe Kugeln) werden per Skript hier eingefügt -->
       </a-entity>
 
     </a-entity>
   </a-scene>
 
-  <div id="hint">Ein Finger: drehen · Zwei Finger: zoomen · Gelben Punkt antippen: Info</div>
+  <div id="hint">Ein Finger: drehen · Zwei Finger oder + / −: zoomen · Gelben Punkt antippen: Info</div>
 
-  <div id="info">
-    <button id="infoClose" aria-label="Schließen">×</button>
+  <div id="tools" class="ui">
+    <button id="zoomIn"  type="button" aria-label="Vergrößern">+</button>
+    <button id="zoomOut" type="button" aria-label="Verkleinern">−</button>
+    <button id="reset"   type="button" aria-label="Zurücksetzen">⟲</button>
+  </div>
+
+  <div id="info" class="ui">
+    <button id="infoClose" type="button" aria-label="Schließen">×</button>
     <h3 id="infoTitle"></h3>
     <p id="infoText"></p>
   </div>
 
-  <div id="debugbox"></div>
+  <div id="msg"></div>
 
   <script>
     // =====================================================
     // EINSTELLUNGEN (hier darfst du ändern)
     // =====================================================
 
-    // Größe des Modells, gemessen in Marker-Breiten (1 = so breit wie die Karte)
+    // Dateiname des 3D-Modells (.obj oder .glb). Muss GENAU so heißen wie die Datei im Ordner models/.
+    const MODEL_FILE = './models/camera.obj';
+
+    // Größe des Modells in Marker-Breiten (1 = so breit wie die Marke)
     const MODEL_SIZE = 0.5;
 
-    // Abstand des Modells vor der Karte (damit es nicht in der Karte steckt)
+    // Abstand des Modells vor der Marke
     const MODEL_Z = 0.25;
 
-    // Grunddrehung des Modells in Grad: "x y z"
-    // Wenn die Kamera schief oder falsch herum steht, hier probieren, z. B. "0 180 0" oder "90 0 0"
+    // Grunddrehung in Grad "x y z". Steht die Kamera falsch herum, z. B. "0 180 0" oder "90 0 0" probieren.
     const START_ROT = "0 0 0";
 
-    // Seitenverhältnis des Marker-Bildes (Höhe / Breite). marke.jpg: 1396 / 1920 = 0.727
+    // Seitenverhältnis der Marke (Höhe / Breite), nur für die blaue Kontrollfläche
     const MARKER_ASPECT = 0.727;
 
+    // Zoom-Grenzen (1 = Normalgröße)
+    const ZOOM_MIN = 0.3, ZOOM_MAX = 4;
+
     // Hotspots: position = "x y z" relativ zur Modellmitte (in Marker-Breiten).
-    // Die Werte unten sind nur Startwerte! Echte Werte findest du so:
-    // Seite mit ?debug öffnen, auf eine Stelle des Modells tippen,
-    // die gelbe Box zeigt die Koordinaten. Hier einsetzen.
+    // Die Werte sind nur STARTWERTE. Echte Werte findest du so:
+    //   Seite mit ?debug öffnen, auf eine Stelle des Modells tippen, im gelben Feld steht die Position.
     const HOTSPOTS = [
       {
-        position: "0 0.05 0.15",
+        position: "0 0.03 0.15",
         title: "Objektiv",
-        text: "Hier steht später der Text zum Objektiv. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore."
+        text: "Das Objektiv bündelt das Licht und erzeugt das Bild auf dem Sensor. Die Brennweite bestimmt den Bildausschnitt, die Blende die Lichtmenge und die Schärfentiefe."
       },
       {
         position: "0.12 0.1 0",
         title: "Sucher",
-        text: "Hier steht später der Text zum Sucher. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt."
+        text: "Im Sucher siehst du das Motiv vor der Aufnahme und kannst den Bildausschnitt festlegen. Meist werden hier auch Blende, Belichtungszeit und ISO eingeblendet."
+      },
+      {
+        position: "-0.12 0.1 0",
+        title: "Auslöser",
+        text: "Ein halber Druck stellt meist scharf und misst das Licht. Beim vollen Druck öffnet sich der Verschluss, wie lange, bestimmt die Belichtungszeit."
       }
     ];
 
@@ -128,58 +156,66 @@
     const THREE = AFRAME.THREE;
     const DEBUG = new URLSearchParams(location.search).has('debug');
 
-    const sceneEl = document.querySelector('a-scene');
-    const target  = document.getElementById('target0');
-    const pivot   = document.getElementById('pivot');
+    const sceneEl  = document.querySelector('a-scene');
+    const target   = document.getElementById('target0');
+    const pivot    = document.getElementById('pivot');
     const startrot = document.getElementById('startrot');
-    const holder  = document.getElementById('holder');
-    const model   = document.getElementById('model');
-    const hint    = document.getElementById('hint');
-    const info    = document.getElementById('info');
-    const debugbox = document.getElementById('debugbox');
+    const holder   = document.getElementById('holder');
+    const model    = document.getElementById('model');
+    const hint     = document.getElementById('hint');
+    const tools    = document.getElementById('tools');
+    const info     = document.getElementById('info');
+    const msg      = document.getElementById('msg');
 
-    // Meldung im gelben Feld anzeigen
-  function handleTap(clientX, clientY) {
-  const cam = sceneEl.camera; // Echte A-Frame Kamera-Referenz
-  const rect = sceneEl.canvas.getBoundingClientRect();
-  const ndc = new THREE.Vector2(
-    ((clientX - rect.left) / rect.width) * 2 - 1,
-    -((clientY - rect.top) / rect.height) * 2 + 1
-  );
-  raycaster.setFromCamera(ndc, cam);
+    let targetVisible = false;
 
-    // Marker-Höhe und Debug-Anzeige
+    // Meldung im gelben Feld (auch JavaScript-Fehler, damit du sie am Handy siehst)
+    function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
+    window.addEventListener('error', (e) => showMsg('JS-Fehler: ' + e.message));
+    sceneEl.addEventListener('arError', () =>
+      showMsg('AR konnte nicht starten. Kamera erlaubt? targets.mind vorhanden? Adresse mit https?'));
+
+    // Marker-Kontrollfläche
     document.getElementById('debugPlane').setAttribute('height', MARKER_ASPECT);
     if (DEBUG) {
       document.getElementById('debugPlane').setAttribute('visible', 'true');
       showMsg('Debug an: Modell wird geladen ...');
     }
 
-    // Grunddrehung und Abstand setzen
+    // Grunddrehung und Abstand
     const r = START_ROT.split(' ').map(Number);
     startrot.setAttribute('rotation', { x: r[0], y: r[1], z: r[2] });
     pivot.setAttribute('position', { x: 0, y: 0, z: MODEL_Z });
 
-    // Modell automatisch auf MODEL_SIZE bringen und zentrieren
+    // Modell laden: .glb/.gltf oder .obj
+    const lower = MODEL_FILE.toLowerCase();
+    const isObj = lower.endsWith('.obj');
+    if (lower.endsWith('.glb') || lower.endsWith('.gltf')) {
+      model.setAttribute('gltf-model', MODEL_FILE);
+    } else {
+      model.setAttribute('obj-model', 'obj: ' + MODEL_FILE);
+    }
+
     model.addEventListener('model-error', () => {
-      showMsg('FEHLER: camer.obj konnte nicht geladen werden (Name/Ordner prüfen).');
+      showMsg('FEHLER: ' + MODEL_FILE + ' konnte nicht geladen werden (Name, Groß-/Kleinschreibung, Ordner prüfen).');
     });
 
     model.addEventListener('model-loaded', () => {
       const mesh = model.getObject3D('mesh');
 
-      // Sichtbares graues Material erzwingen, beide Flächenseiten zeichnen
-      mesh.traverse((o) => {
-        if (o.isMesh) {
-          if (o.geometry && !o.geometry.attributes.normal) {
-            o.geometry.computeVertexNormals();
+      // OBJ-Dateien haben oft kein brauchbares Material: graues Material setzen
+      if (isObj) {
+        mesh.traverse((o) => {
+          if (o.isMesh) {
+            if (o.geometry && !o.geometry.attributes.normal) o.geometry.computeVertexNormals();
+            o.material = new THREE.MeshStandardMaterial({
+              color: 0xcccccc, metalness: 0.3, roughness: 0.6, side: THREE.DoubleSide
+            });
           }
-          o.material = new THREE.MeshStandardMaterial({
-            color: 0xcccccc, metalness: 0.3, roughness: 0.6, side: THREE.DoubleSide
-          });
-        }
-      });
+        });
+      }
 
+      // Größe messen (unabhängig von der Marke) und auf MODEL_SIZE bringen
       const tmp = new THREE.Group();
       tmp.add(mesh.clone());
       tmp.updateMatrixWorld(true);
@@ -203,26 +239,35 @@
       }
     });
 
-    // Hotspots erzeugen
+    // Hotspots erzeugen (gelbe, pulsierende Kugeln, immer sichtbar)
     const hotspotEls = [];
     HOTSPOTS.forEach((h) => {
       const p = h.position.split(' ').map(Number);
       const el = document.createElement('a-sphere');
-      el.setAttribute('radius', '0.035');
-      el.setAttribute('color', '#ffd400');
-      el.setAttribute('opacity', '0.9');
+      el.setAttribute('radius', '0.04');
+      el.setAttribute('material', 'color: #ffd400; shader: flat; depthTest: false; transparent: true; opacity: 0.95');
       el.setAttribute('position', { x: p[0], y: p[1], z: p[2] });
       el.setAttribute('animation',
         'property: scale; from: 1 1 1; to: 1.35 1.35 1.35; dir: alternate; loop: true; dur: 700; easing: easeInOutSine');
+      el.addEventListener('loaded', () => {
+        const m = el.getObject3D('mesh');
+        if (m) m.renderOrder = 999;      // zuletzt zeichnen, damit sie vor dem Modell liegen
+      });
       el.hotspot = h;
-      pivot.appendChild(el);
+      startrot.appendChild(el);
       hotspotEls.push(el);
     });
 
     // Marke gefunden / verloren
-    target.addEventListener('targetFound', () => { hint.style.display = 'block'; });
+    target.addEventListener('targetFound', () => {
+      targetVisible = true;
+      hint.style.display = 'block';
+      tools.style.display = 'flex';
+    });
     target.addEventListener('targetLost', () => {
+      targetVisible = false;
       hint.style.display = 'none';
+      tools.style.display = 'none';
       closeInfo();
     });
 
@@ -235,56 +280,66 @@
     function closeInfo() { info.style.display = 'none'; }
     document.getElementById('infoClose').addEventListener('click', closeInfo);
 
-    // Antippen: Hotspot oder (im Debug) Modell treffen
+    // Antippen: nächstgelegenen Hotspot auf dem Bildschirm treffen (Toleranz 50 Pixel)
     const raycaster = new THREE.Raycaster();
     function handleTap(clientX, clientY) {
-      const cam = sceneEl.camer;
+      if (!targetVisible) return;
+      const cam = sceneEl.camera;
       const rect = sceneEl.canvas.getBoundingClientRect();
-      const ndc = new THREE.Vector2(
-        ((clientX - rect.left) / rect.width) * 2 - 1,
-        -((clientY - rect.top) / rect.height) * 2 + 1
-      );
-      raycaster.setFromCamer(ndc, cam);
 
-      const hotspotObjs = hotspotEls.map(e => e.object3D);
-      const hits = raycaster.intersectObjects(hotspotObjs, true);
-      if (hits.length) {
-        let o = hits[0].object;
-        while (o && !hotspotEls.some(e => e.object3D === o)) o = o.parent;
-        const el = hotspotEls.find(e => e.object3D === o);
-        if (el) { openInfo(el.hotspot); return; }
-      }
+      let best = null, bestDist = 50;
+      const v = new THREE.Vector3();
+      hotspotEls.forEach((el) => {
+        el.object3D.getWorldPosition(v);
+        v.project(cam);
+        if (v.z > 1) return;                       // hinter der Kamera
+        const sx = rect.left + (v.x * 0.5 + 0.5) * rect.width;
+        const sy = rect.top + (-v.y * 0.5 + 0.5) * rect.height;
+        const dist = Math.hypot(sx - clientX, sy - clientY);
+        if (dist < bestDist) { best = el; bestDist = dist; }
+      });
+
+      if (best) { openInfo(best.hotspot); return; }
 
       if (DEBUG) {
-        const mhits = raycaster.intersectObject(model.object3D, true);
-        if (mhits.length) {
-          const local = pivot.object3D.worldToLocal(mhits[0].point.clone());
-          // Hotspots hängen am pivot, also gelten diese Koordinaten direkt.
-          showMsg('position: "' +
-            local.x.toFixed(3) + ' ' + local.y.toFixed(3) + ' ' + local.z.toFixed(3) + '"');
+        // Koordinaten der angetippten Modellstelle anzeigen
+        const ndc = new THREE.Vector2(
+          ((clientX - rect.left) / rect.width) * 2 - 1,
+          -((clientY - rect.top) / rect.height) * 2 + 1
+        );
+        raycaster.setFromCamera(ndc, cam);
+        const hits = raycaster.intersectObject(holder.object3D, true);
+        if (hits.length) {
+          const local = startrot.object3D.worldToLocal(hits[0].point.clone());
+          showMsg('position: "' + local.x.toFixed(3) + ' ' + local.y.toFixed(3) + ' ' + local.z.toFixed(3) + '"');
         }
+      } else {
+        closeInfo();                                // Tippen daneben schließt das Fenster
       }
     }
 
-    // Drehen (1 Finger / Maus) und Zoomen (2 Finger / Mausrad)
+    // Drehen (1 Finger / Maus) und Zoomen (2 Finger / Mausrad / Knöpfe)
     const pointers = new Map();
     let startDist = 0, startScale = 1, scale = 1;
     let rotX = 0, rotY = 0;
-    let moved = 0, downX = 0, downY = 0;
+    let moved = 0, hadMulti = false;
 
     function applyTransform() {
       pivot.object3D.rotation.set(rotX, rotY, 0);
       pivot.object3D.scale.setScalar(scale);
     }
+    function clampScale(s) { return Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, s)); }
+    function zoomBy(f) { scale = clampScale(scale * f); applyTransform(); }
 
     window.addEventListener('pointerdown', (e) => {
-      if (e.target.closest('#info')) return;
+      if (e.target.closest('.ui')) return;          // Knöpfe und Infofenster nicht als Geste werten
+      if (pointers.size === 0) { moved = 0; hadMulti = false; }
       pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.size === 1) { moved = 0; downX = e.clientX; downY = e.clientY; }
       if (pointers.size === 2) {
         const [a, b] = [...pointers.values()];
         startDist = Math.hypot(a.x - b.x, a.y - b.y);
         startScale = scale;
+        hadMulti = true;
       }
     });
 
@@ -299,31 +354,36 @@
         rotY += dx * 0.01;
         rotX += dy * 0.01;
         rotX = Math.max(-1.5, Math.min(1.5, rotX));
-      } else if (pointers.size === 2) {
+      } else if (pointers.size === 2 && startDist > 0) {
         const [a, b] = [...pointers.values()];
-        const d = Math.hypot(a.x - b.x, a.y - b.y);
-        scale = Math.max(0.4, Math.min(3, startScale * (d / startDist)));
-        moved = 999;
+        scale = clampScale(startScale * (Math.hypot(a.x - b.x, a.y - b.y) / startDist));
       }
       applyTransform();
     });
 
     function endPointer(e) {
+      if (!pointers.has(e.pointerId)) return;
       const wasSingle = pointers.size === 1;
       pointers.delete(e.pointerId);
-      // Kurzes Antippen (kaum bewegt) = Tap
-      if (wasSingle && moved < 10 && e.type === 'pointerup') {
-        handleTap(e.clientX, e.clientY);
+      if (wasSingle && !hadMulti && moved < 12 && e.type === 'pointerup') {
+        handleTap(e.clientX, e.clientY);            // kurzes Antippen
       }
     }
     window.addEventListener('pointerup', endPointer);
     window.addEventListener('pointercancel', endPointer);
 
-    // Mausrad (nur zum Testen am Computer)
-    window.addEventListener('wheel', (e) => {
-      scale = Math.max(0.4, Math.min(3, scale * (e.deltaY < 0 ? 1.1 : 0.9)));
-      applyTransform();
-    }, { passive: true });
+    // Knöpfe
+    document.getElementById('zoomIn').addEventListener('click', () => zoomBy(1.25));
+    document.getElementById('zoomOut').addEventListener('click', () => zoomBy(0.8));
+    document.getElementById('reset').addEventListener('click', () => {
+      rotX = 0; rotY = 0; scale = 1; applyTransform(); closeInfo();
+    });
+
+    // Mausrad (zum Testen am Computer)
+    window.addEventListener('wheel', (e) => zoomBy(e.deltaY < 0 ? 1.1 : 0.9), { passive: true });
+
+    // iPhone: Browser-eigenes Zoomen der Seite verhindern
+    document.addEventListener('gesturestart', (e) => e.preventDefault());
   </script>
 </body>
 </html>
