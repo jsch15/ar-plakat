@@ -171,16 +171,19 @@
 
     // Meldung im gelben Feld (auch JavaScript-Fehler, damit du sie am Handy siehst)
     function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
+    function hideMsg() { msg.style.display = 'none'; }
+    let modelDone = false;
     window.addEventListener('error', (e) => showMsg('JS-Fehler: ' + e.message));
     sceneEl.addEventListener('arError', () =>
       showMsg('AR konnte nicht starten. Kamera erlaubt? targets.mind vorhanden? Adresse mit https?'));
 
     // Marker-Kontrollfläche
     document.getElementById('debugPlane').setAttribute('height', MARKER_ASPECT);
-    if (DEBUG) {
-      document.getElementById('debugPlane').setAttribute('visible', 'true');
-      showMsg('Debug an: Modell wird geladen ...');
-    }
+    if (DEBUG) document.getElementById('debugPlane').setAttribute('visible', 'true');
+    showMsg('Modell wird geladen ...');
+    setTimeout(() => {
+      if (!modelDone) showMsg('Das Modell lädt sehr lange oder gar nicht. Datei evtl. zu groß (Tipp: als .glb verkleinern) oder Name/Ordner falsch: ' + MODEL_FILE);
+    }, 20000);
 
     // Grunddrehung und Abstand
     const r = START_ROT.split(' ').map(Number);
@@ -202,6 +205,21 @@
 
     model.addEventListener('model-loaded', () => {
       const mesh = model.getObject3D('mesh');
+      modelDone = true;
+
+      // Diagnose: Wie viele Teile und Dreiecke enthält die Datei?
+      let parts = 0, tris = 0;
+      mesh.traverse((o) => {
+        if (o.isMesh && o.geometry) {
+          parts++;
+          const g = o.geometry;
+          tris += (g.index ? g.index.count : (g.attributes.position ? g.attributes.position.count : 0)) / 3;
+        }
+      });
+      if (parts === 0) {
+        showMsg('FEHLER: Die Datei ' + MODEL_FILE + ' enthält keine Flächen (nur leer, Punkte oder Linien).');
+        return;
+      }
 
       // OBJ-Dateien haben oft kein brauchbares Material: graues Material setzen
       if (isObj) {
@@ -233,10 +251,9 @@
       holder.object3D.scale.setScalar(s);
       model.object3D.position.copy(center).multiplyScalar(-1);
 
-      if (DEBUG) {
-        showMsg('Modell geladen. Originalgröße: ' +
-          size.x.toFixed(1) + ' x ' + size.y.toFixed(1) + ' x ' + size.z.toFixed(1));
-      }
+      showMsg('Modell geladen: ' + parts + ' Teile, ' + Math.round(tris) + ' Dreiecke, Originalgröße ' +
+        size.x.toFixed(1) + ' x ' + size.y.toFixed(1) + ' x ' + size.z.toFixed(1));
+      if (!DEBUG) setTimeout(hideMsg, 6000);
     });
 
     // Hotspots erzeugen (gelbe, pulsierende Kugeln, immer sichtbar)
